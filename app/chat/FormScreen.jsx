@@ -27,6 +27,24 @@ function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
     onRestart();
   };
 
+  const handleRestartPress = () => {
+    Alert.alert(
+      "Restart Chat",
+      "Are you sure you want to restart? This will clear all data.",
+      [
+        {
+          text: "No",
+          style: "cancel"
+        },
+        {
+          text: "Yes",
+          style: "destructive",
+          onPress: onRestart
+        }
+      ]
+    );
+  };
+
   const camelToTitle = (str) => {
     return str.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^[a-z]/, (c) => c.toUpperCase());
   };
@@ -353,9 +371,17 @@ function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
 
   if (!formSpec) {
     return (
-      <View className="flex-1 bg-[#0f1729] justify-center items-center">
-        <ActivityIndicator size="large" color="#60a5fa" />
-        <Text className="text-blue-400 mt-4">Loading form...</Text>
+      <View className="flex-1 items-center justify-center p-4">
+        <Text className="text-gray-400 text-lg text-center mb-4">
+          Chat first to generate the form
+        </Text>
+        <TouchableOpacity 
+          onPress={handleRestartPress}
+          className="bg-blue-500/20 px-4 py-2 rounded-full flex-row items-center"
+        >
+          <Ionicons name="refresh" size={20} color="#60a5fa" />
+          <Text className="text-blue-400 ml-2">Restart Chat</Text>
+        </TouchableOpacity>
       </View>
     );
   }

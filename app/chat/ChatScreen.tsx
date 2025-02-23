@@ -9,7 +9,8 @@ import {
   Platform,
   ScrollView,
   Keyboard,
-  Linking
+  Linking,
+  Alert
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
@@ -131,6 +132,24 @@ export default function ChatScreen({ sessionId, messages, onMessagesChange, onRe
     }
   };
 
+  const handleRestartPress = () => {
+    Alert.alert(
+      "Restart Chat",
+      "Are you sure you want to restart? This will clear all messages.",
+      [
+        {
+          text: "No",
+          style: "cancel"
+        },
+        {
+          text: "Yes",
+          style: "destructive",
+          onPress: onRestart
+        }
+      ]
+    );
+  };
+
   const MessageBubble = ({ message }: { message: Message }) => (
     <View
       className={`flex-row ${
@@ -207,17 +226,17 @@ export default function ChatScreen({ sessionId, messages, onMessagesChange, onRe
             <Text className="text-blue-400 text-sm">Always Online</Text>
           </View>
         </View>    
-    {/* <TouchableOpacity 
-        style={{ overflow: 'hidden' }}
-        onPress={() => router.push('/home')}
-        className="w-10 h-10 rounded-full border border-blue-500/20 ml-2 items-center justify-center"
-    >
-        <LinearGradient
+        <TouchableOpacity 
+          style={{ overflow: 'hidden' }}
+          onPress={handleRestartPress}
+          className="w-10 h-10 rounded-full border border-blue-500/20 ml-2 items-center justify-center"
+        >
+          <LinearGradient
             colors={['rgba(96,165,250,0.1)', 'rgba(59,130,246,0.05)']}
             className="absolute inset-0 rounded-full"
-        />
-        <MaterialIcons name="home" size={20} color="#60a5fa" />
-    </TouchableOpacity> */}
+          />
+          <Ionicons name="refresh" size={20} color="#60a5fa" />
+        </TouchableOpacity>
       </LinearGradient>
 
       <ScrollView
