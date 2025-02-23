@@ -24,6 +24,7 @@ import Animated, {
 import { sendChatMessage } from '../../api/chat';
 import { useRouter } from 'expo-router';
 import { useLocalSearchParams } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ChatLayout() {
   const router = useRouter();
@@ -40,6 +41,47 @@ export default function ChatLayout() {
   const TAB_WIDTH = (width - (PADDING * 2)) / 2;
   
   const translateX = useSharedValue(0);
+
+  // Load saved chat data when component mounts
+  useEffect(() => {
+    const loadSavedChat = async () => {
+      try {
+        if (templateId) {
+          const savedSession = await AsyncStorage.getItem(`session_${templateId}`);
+          const savedMessages = await AsyncStorage.getItem(`messages_${templateId}`);
+          const savedProfession = await AsyncStorage.getItem(`profession_${templateId}`);
+          
+          if (savedSession && savedMessages && savedProfession) {
+            setSessionId(savedSession);
+            setChatMessages(JSON.parse(savedMessages));
+            setProfessionInput(savedProfession);
+            setShowProfessionModal(false);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading saved chat:', error);
+      }
+    };
+
+    loadSavedChat();
+  }, [templateId]);
+
+  // Save chat data whenever it changes
+  useEffect(() => {
+    const saveChat = async () => {
+      try {
+        if (templateId && sessionId) {
+          await AsyncStorage.setItem(`session_${templateId}`, sessionId);
+          await AsyncStorage.setItem(`messages_${templateId}`, JSON.stringify(chatMessages));
+          await AsyncStorage.setItem(`profession_${templateId}`, professionInput);
+        }
+      } catch (error) {
+        console.error('Error saving chat:', error);
+      }
+    };
+
+    saveChat();
+  }, [templateId, sessionId, chatMessages, professionInput]);
 
   useEffect(() => {
     if (!templateId) {
@@ -94,18 +136,27 @@ export default function ChatLayout() {
     }
   };
 
-  const handleRestart = React.useCallback(() => {
-    setShowProfessionModal(true);
-    setSessionId(null);
-    setFormSpec(null);
-    setProfessionInput('');
-    setChatMessages([]);
-    setActiveTab('chat');
-    // Reset but stay on the same page with same template
-    router.replace({
-      pathname: '/chat',
-      params: { templateId }
-    });
+  const handleRestart = React.useCallback(async () => {
+    try {
+      if (templateId) {
+        await AsyncStorage.removeItem(`session_${templateId}`);
+        await AsyncStorage.removeItem(`messages_${templateId}`);
+        await AsyncStorage.removeItem(`profession_${templateId}`);
+      }
+      setShowProfessionModal(true);
+      setSessionId(null);
+      setFormSpec(null);
+      setProfessionInput('');
+      setChatMessages([]);
+      setActiveTab('chat');
+      // Reset but stay on the same page with same template
+      router.replace({
+        pathname: '/chat',
+        params: { templateId }
+      });
+    } catch (error) {
+      console.error('Error clearing saved chat:', error);
+    }
   }, [router, templateId]);
 
   if (!templateId) {
