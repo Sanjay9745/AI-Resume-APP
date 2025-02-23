@@ -31,7 +31,7 @@ interface Message {
 interface ChatScreenProps {
   sessionId: string | null;
   messages: Message[];
-  onMessagesChange: (messages: Message[]) => void;
+  onMessagesChange: (updater: (messages: Message[]) => Message[]) => void;
   onRestart: () => void;
 }
 
@@ -82,7 +82,9 @@ export default function ChatScreen({ sessionId, messages, onMessagesChange, onRe
       timestamp: new Date()
     };
 
-    onMessagesChange([...messages, newMessage]);
+    // Add user message to existing messages using the callback form
+    onMessagesChange(prevMessages => [...prevMessages, newMessage]);
+    
     setInputText('');
     setTimeout(() => scrollToBottom(), 100);
     handleChatResponse(inputText);
@@ -106,10 +108,13 @@ export default function ChatScreen({ sessionId, messages, onMessagesChange, onRe
         isUser: false,
         timestamp: new Date(),
         isJson: response.result.formJSONSpec !== undefined,
-        jsonPath: response.result.path
+        jsonPath: response.result.path,
+        resumePath: response.result.resumePath
       };
       
-      onMessagesChange([...messages, newMessage]);
+      // Add only the AI response message to existing messages
+      onMessagesChange(prevMessages => [...prevMessages, newMessage]);
+      
     } catch (error) {
       console.error('Error sending chat message:', error);
       const errorMessage: Message = {
@@ -118,7 +123,8 @@ export default function ChatScreen({ sessionId, messages, onMessagesChange, onRe
         isUser: false,
         timestamp: new Date()
       };
-      onMessagesChange([...messages, errorMessage]);
+      // Update messages while preserving previous messages
+      onMessagesChange(prevMessages => [...prevMessages, errorMessage]);
     } finally {
       setIsTyping(false);
       setTimeout(() => scrollToBottom(), 100);

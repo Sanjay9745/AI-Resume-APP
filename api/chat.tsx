@@ -20,6 +20,8 @@ interface ChatResponse {
         messages?: any[];
         timestamp: string;
         error: null | string;
+        resumePath?: string;
+        isChat?: boolean;
     };
 }
 

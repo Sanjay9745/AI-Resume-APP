@@ -5,6 +5,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { sendChatMessage } from '../../api/chat';
 import cdnUrl from '../../api/cdnUrl';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import SubmitLoader from './SubmitLoader';
 
 function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
   const { templateId } = useLocalSearchParams();
@@ -169,6 +170,7 @@ function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
             <LinearGradient
               colors={['#60a5fa', '#3b82f6']}
               className="py-2 px-4 rounded-xl flex-row items-center justify-center"
+              style={{ borderRadius: 10, overflow: 'hidden' }}
             >
               <Ionicons name="add" size={24} color="white" />
               <Text className="text-white ml-2">
@@ -291,6 +293,64 @@ function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
     </View>
   );
 
+  const renderLoaderOrForm = () => {
+    if (isSubmitting) {
+      return (
+        <View className="flex-1 items-center justify-center">
+          <SubmitLoader />
+          <Text className="text-blue-400 mt-4">Generating your resume...</Text>
+        </View>
+      );
+    }
+    
+    if (showDownload) {
+      return <ResumeDownload />;
+    }
+
+    return (
+      <>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 8 }}
+          className="mb-6"
+        >
+          {tabs.map((section) => (
+            <TouchableOpacity
+              key={section}
+              onPress={() => setCurrentSection(section)}
+              className={`px-4 py-2 rounded-xl mx-2 ${currentSection === section ? 'bg-blue-500' : 'bg-white/5'}`}
+            >
+              <Text className="text-white text-lg">
+                {camelToTitle(section)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {currentSection === 'basicInfo' ? (
+          renderBasicInfo()
+        ) : (
+          renderDynamicSection(currentSection)
+        )}
+
+        <TouchableOpacity
+          className="mt-6 mb-6"
+          onPress={handleSubmit}
+          disabled={isSubmitting}
+          style={{ borderRadius: 10, overflow: 'hidden' }}
+        >
+          <LinearGradient
+            colors={['#60a5fa', '#3b82f6']}
+            className="w-full py-3 rounded-xl items-center justify-center"
+          >
+            <Text className="text-white text-lg">Submit Resume</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </>
+    );
+  };
+
   if (!formSpec) {
     return (
       <View className="flex-1 bg-[#0f1729] justify-center items-center">
@@ -307,53 +367,7 @@ function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
   return (
     <SafeAreaView className="flex-1 bg-[#0f1729]">
       <ScrollView className="flex-1 px-4">
-        {showDownload ? (
-          <ResumeDownload />
-        ) : (
-          <>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 8 }}
-              className="mb-6"
-            >
-              {tabs.map((section) => (
-                <TouchableOpacity
-                  key={section}
-                  onPress={() => setCurrentSection(section)}
-                  className={`px-4 py-2 rounded-xl mx-2 ${currentSection === section ? 'bg-blue-500' : 'bg-white/5'}`}
-                >
-                  <Text className="text-white text-lg">
-                    {camelToTitle(section)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            {currentSection === 'basicInfo' ? (
-              renderBasicInfo()
-            ) : (
-              renderDynamicSection(currentSection)
-            )}
-
-            <TouchableOpacity
-              className="mt-6 mb-6"
-              onPress={handleSubmit}
-              disabled={isSubmitting}
-            >
-              <LinearGradient
-                colors={['#60a5fa', '#3b82f6']}
-                className="w-full py-3 rounded-xl items-center justify-center"
-              >
-                {isSubmitting ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <Text className="text-white text-lg">Submit Resume</Text>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </>
-        )}
+        {renderLoaderOrForm()}
       </ScrollView>
     </SafeAreaView>
   );

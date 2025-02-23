@@ -1,1 +1,1 @@
-export default "https://ai-resume-backend-wkea.onrender.com/api";
+export default "https://resume-ai-backend.sanjaysanthosh.live/api";
