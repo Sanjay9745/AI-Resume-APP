@@ -36,6 +36,7 @@ export default function ChatLayout() {
   const [isLoading, setIsLoading] = useState(false);
   const [professionInput, setProfessionInput] = useState('');
   const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [formData, setFormData] = useState<any>(null);
   const { width } = useWindowDimensions();
   const PADDING = 24;
   const TAB_WIDTH = (width - (PADDING * 2)) / 2;
@@ -50,12 +51,20 @@ export default function ChatLayout() {
           const savedSession = await AsyncStorage.getItem(`session_${templateId}`);
           const savedMessages = await AsyncStorage.getItem(`messages_${templateId}`);
           const savedProfession = await AsyncStorage.getItem(`profession_${templateId}`);
+          const savedFormData = await AsyncStorage.getItem(`form_${templateId}`);
+          const savedFormSpec = await AsyncStorage.getItem(`formSpec_${templateId}`);
           
           if (savedSession && savedMessages && savedProfession) {
             setSessionId(savedSession);
             setChatMessages(JSON.parse(savedMessages));
             setProfessionInput(savedProfession);
             setShowProfessionModal(false);
+            if (savedFormSpec) {
+              setFormSpec(JSON.parse(savedFormSpec));
+            }
+            if (savedFormData) {
+              setFormData(JSON.parse(savedFormData));
+            }
           }
         }
       } catch (error) {
@@ -74,6 +83,12 @@ export default function ChatLayout() {
           await AsyncStorage.setItem(`session_${templateId}`, sessionId);
           await AsyncStorage.setItem(`messages_${templateId}`, JSON.stringify(chatMessages));
           await AsyncStorage.setItem(`profession_${templateId}`, professionInput);
+          if (formSpec) {
+            await AsyncStorage.setItem(`formSpec_${templateId}`, JSON.stringify(formSpec));
+          }
+          if (formData) {
+            await AsyncStorage.setItem(`form_${templateId}`, JSON.stringify(formData));
+          }
         }
       } catch (error) {
         console.error('Error saving chat:', error);
@@ -81,7 +96,7 @@ export default function ChatLayout() {
     };
 
     saveChat();
-  }, [templateId, sessionId, chatMessages, professionInput]);
+  }, [templateId, sessionId, chatMessages, professionInput, formSpec, formData]);
 
   useEffect(() => {
     if (!templateId) {
@@ -142,10 +157,13 @@ export default function ChatLayout() {
         await AsyncStorage.removeItem(`session_${templateId}`);
         await AsyncStorage.removeItem(`messages_${templateId}`);
         await AsyncStorage.removeItem(`profession_${templateId}`);
+        await AsyncStorage.removeItem(`form_${templateId}`);
+        await AsyncStorage.removeItem(`formSpec_${templateId}`);
       }
       setShowProfessionModal(true);
       setSessionId(null);
       setFormSpec(null);
+      setFormData(null);
       setProfessionInput('');
       setChatMessages([]);
       setActiveTab('chat');
@@ -278,6 +296,7 @@ export default function ChatLayout() {
           <FormScreen 
             sessionId={sessionId} 
             formSpec={formSpec} 
+            formData={formData}
             onChatUpdate={setChatMessages}
             onRestart={handleRestart}
           />

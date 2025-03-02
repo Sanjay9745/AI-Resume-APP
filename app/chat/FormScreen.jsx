@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, SafeAreaView, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { sendChatMessage } from '../../api/chat';
@@ -7,7 +8,7 @@ import cdnUrl from '../../api/cdnUrl';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import SubmitLoader from './SubmitLoader';
 
-function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
+export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart, formData: initialFormData }) {
   const { templateId } = useLocalSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDownload, setShowDownload] = useState(false);
@@ -51,6 +52,7 @@ function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
 
   const generateInitialFormData = () => {
     if (!formSpec) return {};
+    if (initialFormData) return initialFormData;
 
     const initialData = {
       basicInfo: Object.keys(formSpec.required.basicInfo).reduce((acc, field) => {
@@ -88,6 +90,22 @@ function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
     }
   }, [formSpec]);
 
+  // Update form data when initialFormData changes
+  useEffect(() => {
+    if (initialFormData) {
+      setFormData(initialFormData);
+    }
+  }, [initialFormData]);
+
+  const handleFormDataChange = (newFormData) => {
+    setFormData(newFormData);
+    // Save to AsyncStorage immediately when form data changes
+    if (templateId) {
+      AsyncStorage.setItem(`form_${templateId}`, JSON.stringify(newFormData))
+        .catch(error => console.error('Error saving form data:', error));
+    }
+  };
+
   const renderBasicInfo = () => {
     if (!formSpec?.required?.basicInfo) return null;
     
@@ -101,10 +119,11 @@ function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
             placeholderTextColor="#94a3b8"
             value={formData.basicInfo[field]}
             onChangeText={(text) => {
-              setFormData((prev) => ({
-                ...prev,
-                basicInfo: { ...prev.basicInfo, [field]: text },
-              }));
+              const newFormData = {
+                ...formData,
+                basicInfo: { ...formData.basicInfo, [field]: text },
+              };
+              handleFormDataChange(newFormData);
             }}
           />
         ))}
@@ -131,12 +150,13 @@ function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
                   placeholderTextColor="#94a3b8"
                   value={item[field]}
                   onChangeText={(text) => {
-                    setFormData((prev) => ({
-                      ...prev,
-                      [sectionName]: prev[sectionName].map((i, iIndex) =>
+                    const newFormData = {
+                      ...formData,
+                      [sectionName]: formData[sectionName].map((i, iIndex) =>
                         iIndex === index ? { ...i, [field]: text } : i
                       ),
-                    }));
+                    };
+                    handleFormDataChange(newFormData);
                   }}
                 />
               ))
@@ -164,10 +184,11 @@ function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
                   placeholderTextColor="#94a3b8"
                   value={item}
                   onChangeText={(text) => {
-                    setFormData((prev) => ({
-                      ...prev,
-                      [sectionName]: prev[sectionName].map((i, iIndex) => (iIndex === index ? text : i)),
-                    })); 
+                    const newFormData = {
+                      ...formData,
+                      [sectionName]: formData[sectionName].map((i, iIndex) => (iIndex === index ? text : i)),
+                    };
+                    handleFormDataChange(newFormData);
                   }}
                 />
                 <TouchableOpacity
@@ -202,12 +223,13 @@ function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
   };
 
   const handleSkillToggle = (sectionName, skill) => {
-    setFormData((prev) => ({
-      ...prev,
-      [sectionName]: prev[sectionName].includes(skill)
-        ? prev[sectionName].filter(s => s !== skill)
-        : [...prev[sectionName], skill]
-    }));
+    const newFormData = {
+      ...formData,
+      [sectionName]: formData[sectionName].includes(skill)
+        ? formData[sectionName].filter(s => s !== skill)
+        : [...formData[sectionName], skill]
+    };
+    handleFormDataChange(newFormData);
   };
 
   const handleAddItem = (sectionName) => {
@@ -218,17 +240,19 @@ function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
           return acc;
         }, {})
       : '';
-    setFormData((prev) => ({
-      ...prev,
-      [sectionName]: [...prev[sectionName], addItem],
-    }));
+    const newFormData = {
+      ...formData,
+      [sectionName]: [...formData[sectionName], addItem],
+    };
+    handleFormDataChange(newFormData);
   };
 
   const handleRemoveItem = (sectionName, index) => {
-    setFormData((prev) => ({
-      ...prev,
-      [sectionName]: prev[sectionName].filter((_, i) => i !== index),
-    }));
+    const newFormData = {
+      ...formData,
+      [sectionName]: formData[sectionName].filter((_, i) => i !== index),
+    };
+    handleFormDataChange(newFormData);
   };
 
   const handleSubmit = async () => {
@@ -250,6 +274,7 @@ function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
       if (response.success) {
         setShowDownload(true);
         setResumePath(response.result.resumePath);
+        // Update chat messages and form data in parent component
         onChatUpdate(prev => [...prev, {
           id: Date.now().toString(),
           text: 'JSON_FORMAT_READY',
@@ -259,6 +284,8 @@ function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
           jsonPath: response.result.resumePath,
           resumePath: response.result.resumePath
         }]);
+        // Save final form state
+        handleFormDataChange(formData);
       } else {
         throw new Error('Form submission failed');
       }
@@ -398,5 +425,3 @@ function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart }) {
     </SafeAreaView>
   );
 }
-
-export default FormScreen;
