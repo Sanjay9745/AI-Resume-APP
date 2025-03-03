@@ -3,16 +3,23 @@ import { View, Text, SafeAreaView, TextInput, TouchableOpacity, ScrollView, Aler
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { sendChatMessage } from '../../api/chat';
+import { getResumePreview, sendChatMessage } from '../../api/chat';
 import cdnUrl from '../../api/cdnUrl';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import SubmitLoader from './SubmitLoader';
+import PreviewModal from './PreviewModal';
 
 export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart, formData: initialFormData }) {
   const { templateId } = useLocalSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDownload, setShowDownload] = useState(false);
   const [resumePath, setResumePath] = useState('');
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState('');
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isEditingEnabled, setIsEditingEnabled] = useState(false);
+  const [savedResumeState, setSavedResumeState] = useState(null);
 
   // Reset internal form state when sessionId changes
   useEffect(() => {
@@ -274,6 +281,7 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
       if (response.success) {
         setShowDownload(true);
         setResumePath(response.result.resumePath);
+        setSavedResumeState(null); // Reset saved state after successful submission
         // Update chat messages and form data in parent component
         onChatUpdate(prev => [...prev, {
           id: Date.now().toString(),
@@ -307,6 +315,52 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
     }
   };
 
+  const generatePreview = async () => {
+    console.log('Generating preview...');
+    if (!sessionId || !templateId) {
+      Alert.alert('Error', 'Session not initialized');
+      return;
+    }
+    
+    setIsGeneratingPreview(true);
+    try {
+      let response = await getResumePreview(sessionId, formData);
+      if (response.success) {
+        setPreviewHtml(response.result);
+        setShowPreviewModal(true); // Only open modal after receiving the response
+      } else {
+        throw new Error('Failed to generate preview');
+      }
+    } catch (error) {
+      console.error('Error generating preview:', error);
+      Alert.alert('Error', 'Failed to generate preview. Please try again.');
+    } finally {
+      setIsGeneratingPreview(false);
+    }
+  };
+
+  const handlePreview = async () => {
+    setIsGeneratingPreview(true);
+    try {
+      let response = await getResumePreview(sessionId, formData);
+      if (response.success) {
+        setPreviewHtml(response.result);
+        setShowPreviewModal(true); // Only show modal after successful API response
+      } else {
+        throw new Error('Failed to generate preview');
+      }
+    } catch (error) {
+      console.error('Error generating preview:', error);
+      Alert.alert('Error', 'Failed to generate preview. Please try again.');
+    } finally {
+      setIsGeneratingPreview(false);
+    }
+  };
+
+  const handleResumeStateChange = (newState) => {
+    setSavedResumeState(newState);
+  };
+
   const ResumeDownload = () => (
     <View className="bg-white/5 rounded-2xl border border-blue-500/20 p-6 mt-4">
       <View className="items-center">
@@ -327,6 +381,15 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
           <MaterialIcons name="file-download" size={24} color="white" />
           <Text className="text-white text-lg ml-2">Download Resume</Text>
         </TouchableOpacity>
+        
+        <TouchableOpacity
+          onPress={() => setShowPreviewModal(true)}
+          className="bg-blue-500/30 px-6 py-3 rounded-xl flex-row items-center mb-4"
+        >
+          <MaterialIcons name="visibility" size={24} color="#60a5fa" />
+          <Text className="text-blue-400 text-lg ml-2">Preview Resume</Text>
+        </TouchableOpacity>
+        
         <TouchableOpacity
           onPress={handleRestart}
           className="bg-white/10 px-6 py-3 rounded-xl flex-row items-center"
@@ -378,7 +441,23 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
         ) : (
           renderDynamicSection(currentSection)
         )}
-
+        <TouchableOpacity
+          onPress={generatePreview}
+          disabled={isGeneratingPreview}
+          className="bg-blue-500/30 px-6 py-3 rounded-xl flex-row items-center justify-center mt-4"
+        >
+          {isGeneratingPreview ? (
+            <>
+              <ActivityIndicator color="#60a5fa" size="small" />
+              <Text className="text-blue-400 text-lg ml-2 text-center">Generating Preview...</Text>
+            </>
+          ) : (
+            <>
+              <MaterialIcons name="visibility" size={24} color="#60a5fa" />
+              <Text className="text-blue-400 text-lg ml-2 text-center">Preview Resume</Text>
+            </>
+          )}
+        </TouchableOpacity>
         <TouchableOpacity
           className="mt-6 mb-6"
           onPress={handleSubmit}
@@ -392,6 +471,7 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
             <Text className="text-white text-lg">Submit Resume</Text>
           </LinearGradient>
         </TouchableOpacity>
+
       </>
     );
   };
@@ -422,6 +502,16 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
       <ScrollView className="flex-1 px-4">
         {renderLoaderOrForm()}
       </ScrollView>
+      
+      {/* Preview Modal */}
+      <PreviewModal 
+        visible={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        resumePath={resumePath}
+        htmlContent={previewHtml}
+        sessionId={sessionId}
+        jsonData={formData}
+      />
     </SafeAreaView>
   );
 }
