@@ -404,71 +404,40 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
     );
   };
 
-  const validateForm = () => {
-    // Validate basic info required fields
-    const requiredBasicFields = Object.entries(formSpec.required.basicInfo)
-      .filter(([_, isRequired]) => isRequired)
-      .map(([field]) => field);
-
-    for (const field of requiredBasicFields) {
-      if (!formData.basicInfo[field]?.trim()) {
-        Alert.alert('Missing Information', `Please fill in your ${camelToTitle(field)} in Basic Info section.`);
-        setCurrentSection('basicInfo');
-        return false;
-      }
-    }
-
-    // Validate required sections
-    for (const [sectionName, config] of Object.entries(formSpec.required.sections)) {
-      if (config.required) {
-        // Check if section exists and has at least one entry
-        if (!formData[sectionName] || formData[sectionName].length === 0) {
-          Alert.alert('Missing Information', `Please add at least one entry in ${camelToTitle(sectionName)} section.`);
-          setCurrentSection(sectionName);
-          return false;
-        }
-
-        // For sections with fields, validate required fields in each entry
-        if (config.fields) {
-          const requiredFields = ['companyName', 'jobTitle', 'duration', 'responsibilities']; // Example of required fields
-          for (let i = 0; i < formData[sectionName].length; i++) {
-            const entry = formData[sectionName][i];
-            for (const field of requiredFields) {
-              if (config.fields.includes(field) && !entry[field]?.trim()) {
-                Alert.alert(
-                  'Missing Information',
-                  `Please fill in ${camelToTitle(field)} for entry ${i + 1} in ${camelToTitle(sectionName)} section.`
-                );
-                setCurrentSection(sectionName);
-                return false;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    return true;
-  };
-
   const handleSubmit = async () => {
     if (!sessionId || !templateId) {
       Alert.alert('Error', 'Session not initialized');
       return;
     }
 
-    // Validate form before submission
-    if (!validateForm()) {
-      return;
-    }
+    const cleanFormData = { ...formData };
+
+    Object.entries(formSpec.required.sections).forEach(([sectionName, config]) => {
+      if (Array.isArray(cleanFormData[sectionName])) {
+        if (config.fields) {
+          const hasContent = cleanFormData[sectionName].some(item => 
+            Object.values(item).some(value => value && value.trim() !== '')
+          );
+          if (!hasContent) {
+            cleanFormData[sectionName] = [];
+          } else {
+            cleanFormData[sectionName] = cleanFormData[sectionName].filter(item => 
+              Object.values(item).some(value => value && value.trim() !== '')
+            );
+          }
+        } else if (config.suggestions) {
+          cleanFormData[sectionName] = cleanFormData[sectionName].filter(skill => skill.trim() !== '');
+        }
+      }
+    });
 
     setIsSubmitting(true);
     try {
-      const response = await generateResumePDF(sessionId, formData);
+      const response = await generateResumePDF(sessionId, cleanFormData);
 
       if (response.success) {
         setShowDownload(true);
-        setResumePath(response.result.resumePath);
+        setResumePath(response.result);
         setSavedResumeState(null); // Reset saved state after successful submission
         // Update chat messages and form data in parent component
         onChatUpdate(prev => [...prev, {
@@ -481,7 +450,7 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
           resumePath: response.result
         }]);
         // Save final form state
-        handleFormDataChange(formData);
+        handleFormDataChange(cleanFormData);
       } else {
         throw new Error('Form submission failed');
       }

@@ -182,7 +182,7 @@ export default function ChatScreen({ sessionId, messages, onMessagesChange, onRe
             message.isUser ? 'rounded-tr-none' : 'rounded-tl-none'
           }`}
         >
-          {message.isJson && message.text.includes('JSON_FORMAT_READY') ? (
+          {message.text.includes('JSON_FORMAT_READY') ? (
             <View className="items-center">
               <Text className="text-base text-gray-100 mb-3">
                 Your resume is ready!

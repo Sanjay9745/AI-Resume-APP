@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, Animated, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Animated, TouchableOpacity, ScrollView, Platform, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons, Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { GestureHandlerRootView, PanGestureHandler } from 'react-native-gesture-handler';
@@ -9,6 +9,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const { width, height } = Dimensions.get('window');
 const SLIDER_WIDTH = width * 0.85;
 const KNOB_SIZE = 64;
+
+// Check if platform is web
+const isWeb = Platform.OS === 'web';
 
 const ParticleEffect = ({ style }: any) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -64,6 +67,13 @@ export default function HomeScreen() {
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
+  // Redirect to templates page immediately if on web
+  useEffect(() => {
+    if (isWeb) {
+      router.replace('/templates');
+    }
+  }, []);
+
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -94,14 +104,36 @@ export default function HomeScreen() {
     ]).start();
   }, []);
 
+  // If we're on web, don't render the mobile UI
+  if (isWeb) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#60a5fa" />
+        <Text style={styles.loadingText}>Redirecting to templates...</Text>
+      </View>
+    );
+  }
+
   const spin = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
 
+  const handleGestureUpdate = (event: any) => {
+    const dragX = event.nativeEvent.translationX;
+    // If the user has dragged past 70% of the slider width while still holding
+    if (dragX > SLIDER_WIDTH * 0.7) {
+      // Navigate to templates immediately
+      router.replace('/templates');
+    }
+  };
+
   const handleGesture = Animated.event(
     [{ nativeEvent: { translationX: translateX } }],
-    { useNativeDriver: false }
+    { 
+      useNativeDriver: false,
+      listener: handleGestureUpdate // Add listener to check position during drag
+    }
   );
 
   const onHandlerStateChange = (event: any) => {
@@ -220,14 +252,14 @@ export default function HomeScreen() {
                 </LinearGradient>
               </View>
 
-              <TouchableOpacity style={styles.helpButton}>
+              {/* <TouchableOpacity style={styles.helpButton}>
                 <LinearGradient
                   colors={['rgba(96, 165, 250, 0.2)', 'rgba(59, 130, 246, 0.1)']}
                   style={styles.helpGradient}
                 >
                   <Text style={styles.helpText}>Need Help?</Text>
                 </LinearGradient>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
             </Animated.View>
           </ScrollView>
         </LinearGradient>
@@ -424,5 +456,16 @@ const styles = StyleSheet.create({
     color: '#60a5fa',
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0f1729',
+  },
+  loadingText: {
+    marginTop: 20,
+    fontSize: 18,
+    color: '#60a5fa',
   },
 });
