@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, SafeAreaView, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { getResumePreview, sendChatMessage } from '../../api/chat';
+import { generateResumePDF, getResumePreview, sendChatMessage } from '../../api/chat';
 import cdnUrl from '../../api/cdnUrl';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import SubmitLoader from './SubmitLoader';
 import PreviewModal from './PreviewModal';
 
 export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestart, formData: initialFormData }) {
+  const router = useRouter();
   const { templateId } = useLocalSearchParams();
+  const scrollViewRef = useRef(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDownload, setShowDownload] = useState(false);
   const [resumePath, setResumePath] = useState('');
@@ -33,6 +35,8 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
     setShowDownload(false);
     setResumePath('');
     onRestart();
+    // Navigate to templates page
+    router.replace('/templates');
   };
 
   const handleRestartPress = () => {
@@ -47,7 +51,11 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
         {
           text: "Yes",
           style: "destructive",
-          onPress: onRestart
+          onPress: () => {
+            onRestart();
+            // Navigate to templates page
+            router.replace('/templates');
+          }
         }
       ]
     );
@@ -68,20 +76,18 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
       }, {})
     };
 
-    Object.keys(formSpec.required.sections).forEach((sectionName) => {
-      const sectionConfig = formSpec.required.sections[sectionName];
-      if (sectionConfig.required) {
+    // Initialize all sections with empty fields
+    Object.entries(formSpec.required.sections).forEach(([sectionName, config]) => {
+      const sectionConfig = config;
+      if (sectionConfig.fields) {
+        initialData[sectionName] = [{
+          ...sectionConfig.fields.reduce((acc, field) => {
+            acc[field] = '';
+            return acc;
+          }, {})
+        }];
+      } else if (sectionConfig.suggestions) {
         initialData[sectionName] = [];
-        if (sectionConfig.fields) {
-          initialData[sectionName].push(
-            sectionConfig.fields.reduce((item, field) => {
-              item[field] = '';
-              return item;
-            }, {})
-          );
-        } else if (sectionConfig.suggestions) {
-          initialData[sectionName] = [];
-        }
       }
     });
 
@@ -119,20 +125,31 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
     return (
       <View className="bg-white/5 rounded-2xl border border-blue-500/20 p-4 mt-2">
         {Object.entries(formSpec.required.basicInfo).map(([field, isRequired]) => (
-          <TextInput
-            key={field}
-            className="px-4 py-3 text-white bg-white/5 rounded-xl border border-blue-500/20 mt-4"
-            placeholder={`Enter your ${camelToTitle(field)}${isRequired ? ' *' : ''}...`}
-            placeholderTextColor="#94a3b8"
-            value={formData.basicInfo[field]}
-            onChangeText={(text) => {
-              const newFormData = {
-                ...formData,
-                basicInfo: { ...formData.basicInfo, [field]: text },
-              };
-              handleFormDataChange(newFormData);
-            }}
-          />
+          <View key={field} className="mt-4">
+            <Text className="text-gray-400 text-sm mb-1 ml-1">
+              {camelToTitle(field)}{isRequired ? ' *' : ''}
+            </Text>
+            <TextInput
+              className="px-4 py-3 text-white bg-white/5 rounded-xl border border-blue-500/20"
+              placeholder={`Enter your ${camelToTitle(field)}...`}
+              placeholderTextColor="#94a3b8"
+              value={formData.basicInfo[field]}
+              onChangeText={(text) => {
+                const newFormData = {
+                  ...formData,
+                  basicInfo: { ...formData.basicInfo, [field]: text },
+                };
+                handleFormDataChange(newFormData);
+              }}
+              keyboardType={
+                field === 'email' ? 'email-address' :
+                field === 'phone' ? 'phone-pad' :
+                'default'
+              }
+              autoCapitalize={['email', 'github', 'linkedin', 'website', 'portfolio'].includes(field) ? 'none' : 'words'}
+              autoComplete={field === 'email' ? 'email' : 'off'}
+            />
+          </View>
         ))}
       </View>
     );
@@ -140,33 +157,111 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
 
   const renderDynamicSection = (sectionName) => {
     const sectionConfig = formSpec.required.sections[sectionName];
-    const sections = formData[sectionName];
+    const sections = formData[sectionName] || [];
 
     if (!sectionConfig) return null;
+
+    // Create field helper texts based on the section
+    const getFieldPlaceholder = (field) => {
+      switch(sectionName) {
+        case 'workExperience':
+          switch(field) {
+            case 'companyName': return 'Company name e.g. Google';
+            case 'jobTitle': return 'Job title e.g. Senior Software Engineer';
+            case 'duration': return 'Duration e.g. Jan 2020 - Present';
+            case 'responsibilities': return 'Key responsibilities and achievements';
+            case 'techStack': return 'Technologies used e.g. React, Node.js, AWS';
+            default: return `Enter ${camelToTitle(field)}...`;
+          }
+        case 'projects':
+          switch(field) {
+            case 'projectName': return 'Project name';
+            case 'description': return 'Brief description of the project';
+            case 'technologies': return 'Technologies used e.g. React Native, TypeScript';
+            case 'githubLink': return 'GitHub repository link (optional)';
+            case 'liveLink': return 'Live project link (optional)';
+            default: return `Enter ${camelToTitle(field)}...`;
+          }
+        case 'education':
+          switch(field) {
+            case 'degree': return 'Degree e.g. Bachelor of Science in Computer Science';
+            case 'institution': return 'Institution name';
+            case 'graduationYear': return 'Year of graduation';
+            case 'gpa': return 'GPA (optional)';
+            default: return `Enter ${camelToTitle(field)}...`;
+          }
+        case 'technicalSkills':
+          switch(field) {
+            case 'languages': return 'Programming languages e.g. JavaScript, Python';
+            case 'frameworks': return 'Frameworks e.g. React, Django';
+            case 'tools': return 'Tools & technologies e.g. Git, Docker';
+            default: return `Enter ${camelToTitle(field)}...`;
+          }
+        case 'certifications':
+          switch(field) {
+            case 'certificationName': return 'Name of certification';
+            case 'issuingOrganization': return 'Organization that issued the certification';
+            case 'year': return 'Year obtained';
+            default: return `Enter ${camelToTitle(field)}...`;
+          }
+        case 'additionalInfo':
+          switch(field) {
+            case 'hobbies': return 'Your hobbies';
+            case 'languages': return 'Languages you speak';
+            case 'interests': return 'Professional interests';
+            case 'anythingElse': return 'Any other relevant information';
+            default: return `Enter ${camelToTitle(field)}...`;
+          }
+        default:
+          return `Enter ${camelToTitle(field)}...`;
+      }
+    };
 
     return (
       <View className="bg-white/5 rounded-2xl border border-blue-500/20 p-4 mt-2">
         {sections.map((item, index) => (
           <View key={index} className="mb-4">
             {sectionConfig.fields ? (
-              sectionConfig.fields.map((field) => (
-                <TextInput
-                  key={field}
-                  className="px-4 py-3 text-white bg-white/5 rounded-xl border border-blue-500/20 mb-2"
-                  placeholder={`Enter ${camelToTitle(field)}...`}
-                  placeholderTextColor="#94a3b8"
-                  value={item[field]}
-                  onChangeText={(text) => {
-                    const newFormData = {
-                      ...formData,
-                      [sectionName]: formData[sectionName].map((i, iIndex) =>
-                        iIndex === index ? { ...i, [field]: text } : i
-                      ),
-                    };
-                    handleFormDataChange(newFormData);
-                  }}
-                />
-              ))
+              <>
+                <View className="flex-row justify-between items-center mb-2">
+                  <Text className="text-white text-base">{camelToTitle(sectionName)} Entry {index + 1}</Text>
+                  <TouchableOpacity
+                    onPress={() => handleRemoveItem(sectionName, index)}
+                    className="bg-red-500/20 p-2 rounded-full"
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+                {sectionConfig.fields.map((field) => (
+                  <View key={field} className="mb-2">
+                    <Text className="text-gray-400 text-sm mb-1 ml-1">
+                      {camelToTitle(field)}
+                      {sectionConfig.required && ['name', 'email', 'phone'].includes(field) ? ' *' : ''}
+                    </Text>
+                    <TextInput
+                      className="px-4 py-3 text-white bg-white/5 rounded-xl border border-blue-500/20"
+                      placeholder={getFieldPlaceholder(field)}
+                      placeholderTextColor="#94a3b8"
+                      value={item[field]}
+                      onChangeText={(text) => {
+                        const newFormData = {
+                          ...formData,
+                          [sectionName]: formData[sectionName].map((i, iIndex) =>
+                            iIndex === index ? { ...i, [field]: text } : i
+                          ),
+                        };
+                        handleFormDataChange(newFormData);
+                      }}
+                      multiline={['responsibilities', 'description'].includes(field)}
+                      numberOfLines={['responsibilities', 'description'].includes(field) ? 4 : 1}
+                      textAlignVertical={['responsibilities', 'description'].includes(field) ? 'top' : 'center'}
+                      autoCapitalize={['email', 'githubLink', 'liveLink'].includes(field) ? 'none' : 'sentences'}
+                      keyboardType={['email', 'phone'].includes(field) ? (field === 'email' ? 'email-address' : 'phone-pad') : 'default'}
+                      autoComplete={field === 'email' ? 'email' : 'off'}
+                    />
+                  </View>
+                ))}
+              </>
             ) : sectionConfig.suggestions ? (
               <View className="flex-row items-center flex-wrap gap-2 mb-4">
                 {sectionConfig.suggestions.map((suggestion) => (
@@ -200,11 +295,14 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
                 />
                 <TouchableOpacity
                   onPress={() => handleRemoveItem(sectionName, index)}
-                  className="ml-2"
+                  className="ml-2 bg-red-500/20 p-2 rounded-full"
                 >
-                  <Ionicons name="trash-outline" size={24} color="#ef4444" />
+                  <Ionicons name="trash-outline" size={20} color="#ef4444" />
                 </TouchableOpacity>
               </View>
+            )}
+            {index < sections.length - 1 && (
+              <View className="h-[1px] bg-blue-500/20 my-4" />
             )}
           </View>
         ))}
@@ -220,7 +318,7 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
             >
               <Ionicons name="add" size={24} color="white" />
               <Text className="text-white ml-2">
-                Add {sectionConfig.fields ? 'Entry' : 'Item'}
+                Add New {camelToTitle(sectionName)}
               </Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -240,26 +338,117 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
   };
 
   const handleAddItem = (sectionName) => {
+    const MAX_ENTRIES = 10; // Maximum number of entries allowed per section
     const sectionConfig = formSpec.required.sections[sectionName];
+    
+    if (formData[sectionName].length >= MAX_ENTRIES) {
+      Alert.alert(
+        "Maximum Entries Reached",
+        `You can only add up to ${MAX_ENTRIES} entries in this section.`,
+        [{ text: "OK" }]
+      );
+      return;
+    }
+  
     const addItem = sectionConfig.fields
       ? sectionConfig.fields.reduce((acc, field) => {
           acc[field] = '';
           return acc;
         }, {})
       : '';
+    
     const newFormData = {
       ...formData,
       [sectionName]: [...formData[sectionName], addItem],
     };
     handleFormDataChange(newFormData);
+    
+    // Allow the state to update before scrolling
+    setTimeout(() => {
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollToEnd({ animated: true });
+      }
+    }, 100);
   };
 
   const handleRemoveItem = (sectionName, index) => {
-    const newFormData = {
-      ...formData,
-      [sectionName]: formData[sectionName].filter((_, i) => i !== index),
-    };
-    handleFormDataChange(newFormData);
+    Alert.alert(
+      "Delete Entry",
+      "Are you sure you want to delete this entry?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            // Only delete if there will be at least one item remaining
+            if (formData[sectionName].length > 1) {
+              const newFormData = {
+                ...formData,
+                [sectionName]: formData[sectionName].filter((_, i) => i !== index),
+              };
+              handleFormDataChange(newFormData);
+            } else {
+              Alert.alert(
+                "Cannot Delete",
+                "You must have at least one entry in this section.",
+                [{ text: "OK" }]
+              );
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const validateForm = () => {
+    // Validate basic info required fields
+    const requiredBasicFields = Object.entries(formSpec.required.basicInfo)
+      .filter(([_, isRequired]) => isRequired)
+      .map(([field]) => field);
+
+    for (const field of requiredBasicFields) {
+      if (!formData.basicInfo[field]?.trim()) {
+        Alert.alert('Missing Information', `Please fill in your ${camelToTitle(field)} in Basic Info section.`);
+        setCurrentSection('basicInfo');
+        return false;
+      }
+    }
+
+    // Validate required sections
+    for (const [sectionName, config] of Object.entries(formSpec.required.sections)) {
+      if (config.required) {
+        // Check if section exists and has at least one entry
+        if (!formData[sectionName] || formData[sectionName].length === 0) {
+          Alert.alert('Missing Information', `Please add at least one entry in ${camelToTitle(sectionName)} section.`);
+          setCurrentSection(sectionName);
+          return false;
+        }
+
+        // For sections with fields, validate required fields in each entry
+        if (config.fields) {
+          const requiredFields = ['companyName', 'jobTitle', 'duration', 'responsibilities']; // Example of required fields
+          for (let i = 0; i < formData[sectionName].length; i++) {
+            const entry = formData[sectionName][i];
+            for (const field of requiredFields) {
+              if (config.fields.includes(field) && !entry[field]?.trim()) {
+                Alert.alert(
+                  'Missing Information',
+                  `Please fill in ${camelToTitle(field)} for entry ${i + 1} in ${camelToTitle(sectionName)} section.`
+                );
+                setCurrentSection(sectionName);
+                return false;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return true;
   };
 
   const handleSubmit = async () => {
@@ -268,15 +457,14 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
       return;
     }
 
+    // Validate form before submission
+    if (!validateForm()) {
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const response = await sendChatMessage({
-        message: JSON.stringify(formData),
-        sessionId,
-        isChat: false,
-        isSubmit: true,
-        templateId: String(templateId)
-      });
+      const response = await generateResumePDF(sessionId, formData);
 
       if (response.success) {
         setShowDownload(true);
@@ -289,8 +477,8 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
           isUser: false,
           timestamp: new Date(),
           isJson: true,
-          jsonPath: response.result.resumePath,
-          resumePath: response.result.resumePath
+          jsonPath: response.result,
+          resumePath: response.result
         }]);
         // Save final form state
         handleFormDataChange(formData);
@@ -499,7 +687,11 @@ export default function FormScreen({ sessionId, formSpec, onChatUpdate, onRestar
 
   return (
     <SafeAreaView className="flex-1 bg-[#0f1729]">
-      <ScrollView className="flex-1 px-4">
+      <ScrollView 
+        ref={scrollViewRef}
+        className="flex-1 px-4" 
+        showsVerticalScrollIndicator={false}
+      >
         {renderLoaderOrForm()}
       </ScrollView>
       

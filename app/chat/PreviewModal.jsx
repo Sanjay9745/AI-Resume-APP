@@ -6,7 +6,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import cdnUrl from '../../api/cdnUrl';
 import { getTemplateContent, getTemplateStyles } from './ResumeTemplates';
 import { getSampleResumeHtml } from './SampleResumeHtml';
-import { generateResumePDF } from '@/api/chat';
+import { generateResumePDF, getResumePreview } from '@/api/chat';
 
 // Sample HTML with A4 page styling and page break functionality
 const createHtmlWithPageControls = (content) => `
@@ -613,10 +613,10 @@ const PreviewModal = ({ visible, onClose, resumePath, htmlContent, sessionId, js
           case 'getHtmlContent':
             setIsPdfGenerating(true);
             try {
-              const response = await generateResumePDF(sessionId, jsonData);
+              const response = await getResumePreview(sessionId, data.content);
               if (response.success && response.result) {
-                // Open the PDF
-                await Linking.openURL(`${cdnUrl}${response.result}`);
+              setResumeHtml(createHtmlWithPageControls(response.result));
+              setIsPdfGenerating(false);
               } else {
                 throw new Error('Failed to generate PDF');
               }
@@ -923,7 +923,7 @@ const PreviewModal = ({ visible, onClose, resumePath, htmlContent, sessionId, js
         >
           <Text className="text-white text-xl font-semibold">Resume Preview</Text>
           <View className="flex-row">
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               onPress={toggleEditing}
               className="w-10 h-10 rounded-full border border-blue-500/20 items-center justify-center mr-2"
             >
@@ -933,11 +933,12 @@ const PreviewModal = ({ visible, onClose, resumePath, htmlContent, sessionId, js
               />
               <MaterialIcons name={isEditing ? "edit-off" : "edit"} size={20} color="#60a5fa" />
             </TouchableOpacity>
-            
+             */}
             <TouchableOpacity 
               onPress={handlePrint}
               disabled={isPdfGenerating}
               className="w-10 h-10 rounded-full border border-blue-500/20 items-center justify-center mr-2"
+              style={{ overflow: 'hidden' }}
             >
               <LinearGradient
                 colors={['rgba(96,165,250,0.1)', 'rgba(59,130,246,0.05)']}
@@ -952,6 +953,7 @@ const PreviewModal = ({ visible, onClose, resumePath, htmlContent, sessionId, js
             
             <TouchableOpacity 
               onPress={onClose}
+              style={{ overflow: 'hidden' }}
               className="w-10 h-10 rounded-full border border-blue-500/20 items-center justify-center"
             >
               <LinearGradient
@@ -964,7 +966,7 @@ const PreviewModal = ({ visible, onClose, resumePath, htmlContent, sessionId, js
         </LinearGradient>
 
         {/* Status message */}
-        <View className="px-4 py-2 bg-[#0f1729]">
+        {/* <View className="px-4 py-2 bg-[#0f1729]">
           <Text className="text-blue-400 text-sm text-center">
             {isEditing 
               ? "Editing mode enabled - Make your changes"
@@ -975,7 +977,7 @@ const PreviewModal = ({ visible, onClose, resumePath, htmlContent, sessionId, js
               ? "Tap the edit button to finish editing"
               : "Tap edit to modify content • Tap Print to save as PDF"}
           </Text>
-        </View>
+        </View> */}
 
         <View className="flex-1 relative">
           {(isLoading || isPdfGenerating) ? (

@@ -18,6 +18,7 @@ import Animated, {
   FadeInDown 
 } from 'react-native-reanimated';
 import { getTemplates } from '../../api/templates';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Template {
   id: string;
@@ -34,10 +35,34 @@ export default function TemplatesScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Clear any existing session when returning to templates
-    setSelectedTemplate(null);
-    fetchTemplates();
+    // Check for existing chat sessions and fetch templates
+    checkExistingSessions();
   }, []);
+
+  const checkExistingSessions = async () => {
+    try {
+      // Get templates first
+      const data = await getTemplates();
+      setTemplates(data);
+      
+      // Check if there's a currently active session
+      for (const template of data) {
+        const savedSession = await AsyncStorage.getItem(`session_${template.id}`);
+        if (savedSession) {
+          // Found an active session, redirect to chat
+          router.replace({
+            pathname: '/chat',
+            params: { templateId: template.id }
+          });
+          return; // Exit early
+        }
+      }
+    } catch (error) {
+      console.error('Error checking templates or sessions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchTemplates = async () => {
     try {

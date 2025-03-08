@@ -102,6 +102,12 @@ export default function ChatScreen({ sessionId, messages, onMessagesChange, onRe
         isChat: true,
         templateId: templateId as string
       });
+
+      if (response.result.restartChat) {
+        onRestart();
+        router.replace('/templates');
+        return;
+      }
       
       const newMessage: Message = {
         id: Date.now().toString(),
@@ -144,7 +150,12 @@ export default function ChatScreen({ sessionId, messages, onMessagesChange, onRe
         {
           text: "Yes",
           style: "destructive",
-          onPress: onRestart
+          onPress: () => {
+            // Call the onRestart handler first to clear data
+            onRestart();
+            // Navigate to templates page
+            router.replace('/templates');
+          }
         }
       ]
     );
@@ -186,7 +197,10 @@ export default function ChatScreen({ sessionId, messages, onMessagesChange, onRe
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ overflow: 'hidden' }}
-                onPress={onRestart}
+                onPress={() => {
+                  onRestart();
+                  router.replace('/templates');
+                }}
                 className="bg-white/10 px-4 py-2 rounded-full flex-row items-center"
               >
                 <Ionicons name="refresh" size={20} color="#60a5fa" />

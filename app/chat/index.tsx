@@ -160,6 +160,8 @@ export default function ChatLayout() {
         await AsyncStorage.removeItem(`form_${templateId}`);
         await AsyncStorage.removeItem(`formSpec_${templateId}`);
       }
+      
+      // Reset local state
       setShowProfessionModal(true);
       setSessionId(null);
       setFormSpec(null);
@@ -167,11 +169,9 @@ export default function ChatLayout() {
       setProfessionInput('');
       setChatMessages([]);
       setActiveTab('chat');
-      // Reset but stay on the same page with same template
-      router.replace({
-        pathname: '/chat',
-        params: { templateId }
-      });
+      
+      // Navigate to templates page instead of staying on chat page
+      router.replace('/templates');
     } catch (error) {
       console.error('Error clearing saved chat:', error);
     }
@@ -232,10 +232,7 @@ export default function ChatLayout() {
                   shadowOffset: { width: 0, height: 4 },
                   shadowOpacity: 0.2,
                   shadowRadius: 12,
-                },
-                android: {
-                  elevation: 8,
-                },
+                }
               }),
             }}
           >

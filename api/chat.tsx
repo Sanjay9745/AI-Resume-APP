@@ -22,6 +22,7 @@ interface ChatResponse {
 				error: null | string;
 				resumePath?: string;
 				isChat?: boolean;
+				restartChat?: boolean;
 		};
 }
 
